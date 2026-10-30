@@ -1,0 +1,35 @@
+%YAML 1.1
+---
+services:
+  cachix-proxy:
+    environment:
+      CACHIX_AUTH_TOKEN: ${CACHIX_AUTH_TOKEN:-}
+      CACHIX_CACHE_NAME: ${CACHIX_CACHE_NAME:-}
+    image: cachix-proxy:latest
+    ports:
+    - 5000:5000
+    pull_policy: never
+    volumes:
+    - /nix/store:/nix/store:ro
+    - /nix/var/nix/db:/nix/var/nix/db
+    - cachix-proxy-keys:/var/lib/cachix-proxy
+  orchestrator:
+    depends_on:
+    - pi-agent
+    environment:
+      PI_AGENT_URL: ws://pi-agent:8765
+    image: orchestrator:latest
+    pull_policy: never
+  pi-agent:
+    depends_on:
+    - cachix-proxy
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    expose:
+    - '8765'
+    image: pi-agent:latest
+    pull_policy: never
+    volumes:
+    - ./output:/workspace
+volumes:
+  cachix-proxy-keys: {}

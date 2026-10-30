@@ -1,0 +1,8 @@
+keys:
+  - &maxsei age1nh2cpqwdlsyn3qktla9lal5fnevq3zlx4lpachjse7y6celxh4cq7vx5jc
+
+creation_rules:
+  - path_regex: ^secrets\.env$
+    key_groups:
+      - age:
+          - *maxsei
