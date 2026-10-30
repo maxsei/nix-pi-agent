@@ -1,20 +1,61 @@
-#!/usr/bin/env python3
-"""Connects to the pi-agent's WebSocket RPC bridge to generate index.html."""
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "starlette",
+#   "uvicorn",
+#   "websockets",
+#   "datastar-py",
+# ]
+# ///
+"""Web UI for driving the pi-agent over its WebSocket RPC bridge.
+
+Serves a single page (Datastar-powered) where a user types a prompt and
+watches the agent's streamed output live.
+"""
 import asyncio
 import json
 import os
-import sys
 
+import uvicorn
 import websockets
+from datastar_py import ServerSentEventGenerator as SSE
+from datastar_py.starlette import DatastarResponse, read_signals
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import HTMLResponse
+from starlette.routing import Route
 
 PI_AGENT_URL = os.environ.get("PI_AGENT_URL", "ws://pi-agent:8765")
-TASK = (
-    "Create a plain index.html page at /workspace/index.html that is a "
-    "brochure page for a digital advertising agency. Use only plain HTML/CSS "
-    "(inline or a single <style> block in the <head>), no build tooling, no "
-    "external frameworks or CDNs. Include a hero section, a services section, "
-    "an about/why-us section, and a contact/footer section."
-)
+HOST = os.environ.get("ORCHESTRATOR_HOST", "0.0.0.0")
+PORT = int(os.environ.get("ORCHESTRATOR_PORT", "8080"))
+
+PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>pi-agent orchestrator</title>
+<script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.0-RC.7/bundles/datastar.js"></script>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; }
+  textarea { width: 100%; height: 6rem; font: inherit; }
+  button { margin-top: 0.5rem; padding: 0.5rem 1rem; }
+  #log { white-space: pre-wrap; background: #111; color: #0f0; padding: 1rem; margin-top: 1rem;
+         min-height: 10rem; max-height: 60vh; overflow-y: auto; font-family: monospace; }
+</style>
+</head>
+<body data-signals="{prompt: '', running: false}">
+  <h1>pi-agent orchestrator</h1>
+  <textarea data-bind="prompt" placeholder="Describe what you want the agent to build..."></textarea>
+  <br>
+  <button data-on:click="@post('/run')" data-attr="{disabled: $running}">Run</button>
+  <div id="log"></div>
+</body>
+</html>
+"""
+
+
+async def index(request: Request) -> HTMLResponse:
+    return HTMLResponse(PAGE)
 
 
 async def connect_with_retry(url: str, timeout: float = 60.0):
@@ -28,29 +69,58 @@ async def connect_with_retry(url: str, timeout: float = 60.0):
             await asyncio.sleep(1)
 
 
-async def main() -> int:
-    ws = await connect_with_retry(PI_AGENT_URL)
-    async with ws:
-        await ws.send(json.dumps({"id": "task-1", "type": "prompt", "message": TASK}))
+async def run_events(prompt: str):
+    yield SSE.patch_signals({"running": True})
+    if not prompt:
+        yield SSE.patch_elements('<div id="log">(empty prompt, nothing to do)</div>')
+        yield SSE.patch_signals({"running": False})
+        return
 
-        done = False
-        async for line in ws:
-            print(line, flush=True)
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            state = event.get("state") or event.get("status")
-            if event.get("type") in ("result", "idle") or state == "idle":
-                done = True
-                break
+    yield SSE.patch_elements(f'<div id="log">connecting to pi-agent...\n</div>')
 
-    if not done:
-        print("warning: did not observe an explicit completion event", file=sys.stderr)
+    log_lines: list[str] = []
 
-    print("done. check ./output/index.html on the host")
-    return 0
+    def render_log() -> str:
+        escaped = "\n".join(log_lines)
+        return f'<div id="log">{escaped}</div>'
+
+    try:
+        ws = await connect_with_retry(PI_AGENT_URL)
+        async with ws:
+            await ws.send(json.dumps({
+                "id": "task-1",
+                "type": "prompt",
+                "message": prompt,
+            }))
+
+            async for line in ws:
+                log_lines.append(line)
+                yield SSE.patch_elements(render_log())
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                state = event.get("state") or event.get("status")
+                if event.get("type") in ("result", "idle") or state == "idle":
+                    break
+    except Exception as exc:
+        log_lines.append(f"error: {exc}")
+        yield SSE.patch_elements(render_log())
+
+    yield SSE.patch_signals({"running": False})
+
+
+async def run_route(request: Request):
+    signals = await read_signals(request) or {}
+    prompt = (signals.get("prompt") or "").strip()
+    return DatastarResponse(run_events(prompt))
+
+
+app = Starlette(routes=[
+    Route("/", index),
+    Route("/run", run_route, methods=["POST"]),
+])
 
 
 if __name__ == "__main__":
-    sys.exit(asyncio.run(main()))
+    uvicorn.run(app, host=HOST, port=PORT)

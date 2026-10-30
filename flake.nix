@@ -51,6 +51,7 @@
               environment = {
                 PI_AGENT_URL = "ws://pi-agent:8765";
               };
+              ports = [ "8080:8080" ];
             };
           };
 

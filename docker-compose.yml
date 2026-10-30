@@ -18,6 +18,8 @@ services:
     environment:
       PI_AGENT_URL: ws://pi-agent:8765
     image: orchestrator:latest
+    ports:
+    - 8080:8080
     pull_policy: never
   pi-agent:
     depends_on:

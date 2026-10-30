@@ -14,7 +14,8 @@ SYSTEM_PROMPT_EXTRA = os.environ.get(
     "PI_SYSTEM_PROMPT_EXTRA",
     "You may install any additional tools you need using nix "
     "(e.g. `nix shell nixpkgs#<pkg>` or `nix profile install nixpkgs#<pkg>`). "
-    "Do not use apt/apk/pip install for system tools; this image is Nix-only.",
+    "Do not use apt/apk/pip install for system tools; this image is Nix-only. "
+    "Any artifacts you generate must be written into the /workspace directory.",
 )
 HOST = os.environ.get("PI_WS_HOST", "0.0.0.0")
 PORT = int(os.environ.get("PI_WS_PORT", "8765"))

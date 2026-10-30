@@ -36,7 +36,7 @@ pkgs.dockerTools.buildLayeredImage {
     Env = [
       "NIX_CONFIG=experimental-features = nix-command flakes\nextra-substituters = http://cachix-proxy:5000\nextra-trusted-public-keys = cachix-proxy:0000000000000000000000000000000000000000000=\n"
       "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
-      "PI_SYSTEM_PROMPT_EXTRA=You may install any additional tools you need using nix (e.g. `nix shell nixpkgs#<pkg>` or `nix profile install nixpkgs#<pkg>`). Do not use apt/apk/pip install for system tools; this image is Nix-only."
+      "PI_SYSTEM_PROMPT_EXTRA=You may install any additional tools you need using nix (e.g. `nix shell nixpkgs#<pkg>` or `nix profile install nixpkgs#<pkg>`). Do not use apt/apk/pip install for system tools; this image is Nix-only. Any artifacts you generate must be written into the /workspace directory."
     ];
   };
 }

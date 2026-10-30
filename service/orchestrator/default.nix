@@ -1,8 +1,6 @@
 { pkgs }:
 
 let
-  pythonEnv = pkgs.python3.withPackages (ps: [ ps.websockets ]);
-
   script = pkgs.runCommand "orchestrator-py" { } ''
     mkdir -p $out/bin
     cp ${./orchestrator.py} $out/bin/orchestrator.py
@@ -10,7 +8,7 @@ let
   '';
 
   entrypoint = pkgs.writeShellScriptBin "orchestrator-entrypoint" ''
-    exec ${pythonEnv}/bin/python3 ${script}/bin/orchestrator.py
+    exec ${pkgs.uv}/bin/uv run --no-project ${script}/bin/orchestrator.py
   '';
 in
 pkgs.dockerTools.buildLayeredImage {
@@ -18,7 +16,9 @@ pkgs.dockerTools.buildLayeredImage {
   tag = "latest";
 
   contents = [
-    pythonEnv
+    pkgs.uv
+    pkgs.python3
+    pkgs.cacert
     pkgs.coreutils
     script
     entrypoint
@@ -26,5 +26,11 @@ pkgs.dockerTools.buildLayeredImage {
 
   config = {
     Cmd = [ "${entrypoint}/bin/orchestrator-entrypoint" ];
+    ExposedPorts = {
+      "8080/tcp" = { };
+    };
+    Env = [
+      "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+    ];
   };
 }
