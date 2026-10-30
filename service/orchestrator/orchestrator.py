@@ -38,7 +38,7 @@ PAGE = """<!doctype html>
 <style>
   body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; }
   textarea { width: 100%; height: 6rem; font: inherit; }
-  button { margin-top: 0.5rem; padding: 0.5rem 1rem; }
+  button { margin-top: 0.5rem; padding: 0.5rem 1rem; margin-right: 0.5rem; }
   #log { white-space: pre-wrap; background: #111; color: #0f0; padding: 1rem; margin-top: 1rem;
          min-height: 10rem; max-height: 60vh; overflow-y: auto; font-family: monospace; }
 </style>
@@ -48,6 +48,7 @@ PAGE = """<!doctype html>
   <textarea data-bind="prompt" placeholder="Describe what you want the agent to build..."></textarea>
   <br>
   <button data-on:click="@post('/run')" data-attr="{disabled: $running}">Run</button>
+  <button data-on:click="@post('/stop')" data-attr="{disabled: !$running}">Stop</button>
   <div id="log"></div>
 </body>
 </html>
@@ -69,7 +70,16 @@ async def connect_with_retry(url: str, timeout: float = 60.0):
             await asyncio.sleep(1)
 
 
+active_ws: websockets.WebSocketClientProtocol | None = None
+
+
 async def run_events(prompt: str):
+    global active_ws
+
+    if active_ws is not None:
+        yield SSE.patch_elements('<div id="log">agent is already running</div>')
+        return
+
     yield SSE.patch_signals({"running": True})
     if not prompt:
         yield SSE.patch_elements('<div id="log">(empty prompt, nothing to do)</div>')
@@ -86,6 +96,7 @@ async def run_events(prompt: str):
 
     try:
         ws = await connect_with_retry(PI_AGENT_URL)
+        active_ws = ws
         async with ws:
             await ws.send(json.dumps({
                 "id": "task-1",
@@ -100,12 +111,16 @@ async def run_events(prompt: str):
                     event = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                state = event.get("state") or event.get("status")
-                if event.get("type") in ("result", "idle") or state == "idle":
+                if event.get("type") == "agent_settled":
                     break
+    except websockets.ConnectionClosed:
+        log_lines.append("stopped")
+        yield SSE.patch_elements(render_log())
     except Exception as exc:
         log_lines.append(f"error: {exc}")
         yield SSE.patch_elements(render_log())
+    finally:
+        active_ws = None
 
     yield SSE.patch_signals({"running": False})
 
@@ -116,9 +131,16 @@ async def run_route(request: Request):
     return DatastarResponse(run_events(prompt))
 
 
+async def stop_route(request: Request):
+    if active_ws is not None:
+        await active_ws.send(json.dumps({"id": "stop-1", "type": "abort"}))
+    return DatastarResponse(iter(()))
+
+
 app = Starlette(routes=[
     Route("/", index),
     Route("/run", run_route, methods=["POST"]),
+    Route("/stop", stop_route, methods=["POST"]),
 ])
 
 
