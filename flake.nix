@@ -41,6 +41,7 @@
               expose = [ "8765" ];
               environment = {
                 ANTHROPIC_API_KEY = "\${ANTHROPIC_API_KEY}";
+                PI_MODEL = "haiku";
               };
             };
 

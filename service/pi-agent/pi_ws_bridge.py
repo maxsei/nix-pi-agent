@@ -19,6 +19,7 @@ SYSTEM_PROMPT_EXTRA = os.environ.get(
 )
 HOST = os.environ.get("PI_WS_HOST", "0.0.0.0")
 PORT = int(os.environ.get("PI_WS_PORT", "8765"))
+PI_MODEL = os.environ.get("PI_MODEL", "sonnet")
 
 
 async def pump_stdout(proc: asyncio.subprocess.Process, ws) -> None:
@@ -32,6 +33,7 @@ async def pump_stdout(proc: asyncio.subprocess.Process, ws) -> None:
 async def handler(ws) -> None:
     proc = await asyncio.create_subprocess_exec(
         "pi", "--mode", "rpc", "--no-session", "--approve",
+        "--model", PI_MODEL,
         "--append-system-prompt", SYSTEM_PROMPT_EXTRA,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
