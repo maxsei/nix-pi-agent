@@ -3,6 +3,7 @@
 let
   entrypoint = pkgs.writeShellScriptBin "cachix-proxy-entrypoint" ''
     set -eu
+    export NIX_REMOTE=daemon
     if [ -n "''${CACHIX_AUTH_TOKEN:-}" ] && [ -n "''${CACHIX_CACHE_NAME:-}" ]; then
       ${pkgs.cachix}/bin/cachix authtoken "$CACHIX_AUTH_TOKEN"
       ${pkgs.cachix}/bin/cachix use "$CACHIX_CACHE_NAME"

@@ -23,8 +23,7 @@
               image = "cachix-proxy:latest";
               pull_policy = "never";
               volumes = [
-                "/nix/store:/nix/store:ro"
-                "/nix/var/nix/db:/nix/var/nix/db"
+                "/nix:/nix:ro"
                 "cachix-proxy-keys:/var/lib/cachix-proxy"
               ];
               environment = {

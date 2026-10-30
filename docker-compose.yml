@@ -10,8 +10,7 @@ services:
     - 5000:5000
     pull_policy: never
     volumes:
-    - /nix/store:/nix/store:ro
-    - /nix/var/nix/db:/nix/var/nix/db
+    - /nix:/nix:ro
     - cachix-proxy-keys:/var/lib/cachix-proxy
   orchestrator:
     depends_on:
