@@ -12,3 +12,5 @@ store by telling it to do `ls /nix/store/*mypackage*` (e.g. cowsay). Then you
 can tell it to run `cowsay` which will cause it to install and run the package.
 Now you can verify that cowsay is in the nix store by telling it to run `ls
 /nix/store/*cowsay*`.
+
+![./screenshot.png](./screenshot.png)
